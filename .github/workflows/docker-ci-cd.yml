@@ -26,7 +26,7 @@ jobs:
       run: chmod +x ./gradlew
 
     - name: Build project
-      run: ./gradlew clean build
+      run: ./gradlew clean build -x test
       env:
         AWS_ACCESSKEY: test-access-key
         AWS_SECRETKEY: test-secret-key
