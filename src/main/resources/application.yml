@@ -1,0 +1,28 @@
+spring:
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/chatserver
+      auto-index-creation: true
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 15MB
+
+websocket:
+  endpoint: /ws
+  allowed-origins: "*"
+  
+aws:
+  s3:
+    bucket-name: wowelang-chat-media-dev
+    region: ap-northeast-2
+    presigned-url-expiration: 15 # minutes
+
+chat:
+  message:
+    max-text-length: 2000
+  pagination:
+    default-size: 30
+    max-size: 100
+  room:
+    deleted-ttl-days: 30 

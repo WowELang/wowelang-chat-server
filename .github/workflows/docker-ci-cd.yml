@@ -48,4 +48,7 @@ jobs:
           docker rm chat-server || true
           docker run -d --name chat-server -p 8080:8080 \
             -e SPRING_PROFILES_ACTIVE=prod \
+            -e AWS_ACCESSKEY=${{ secrets.AWS_ACCESS_KEY_ID }} \
+            -e AWS_SECRETKEY=${{ secrets.AWS_SECRET_ACCESS_KEY }} \
+            -e SPRING_DATA_MONGODB_URI=${{ secrets.MONGODB_URI }} \
             ${{ secrets.DOCKER_USERNAME }}/chat-server
