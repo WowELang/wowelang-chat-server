@@ -38,3 +38,14 @@ out/
 
 ### AWS ###
 wowelang-key1.pem
+.aws/
+~/.aws/
+src/main/resources/application-local.yml
+src/main/resources/application-local.properties
+src/main/resources/application-dev.yml
+src/main/resources/application-dev.properties
+
+### 민감한 정보 관련 ###
+*.env
+.env
+credentials

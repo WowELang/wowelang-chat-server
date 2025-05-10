@@ -1,0 +1,32 @@
+spring:
+  data:
+    mongodb:
+      # URI는 환경 변수 SPRING_DATA_MONGODB_URI를 통해 주입됩니다
+      auto-index-creation: true
+      ssl-enabled: true
+      # DocumentDB에서 MongoDB 4.0 호환 모드를 사용하는 경우 필요한 설정
+      uri-settings: 
+        retryWrites: false
+        replicaSet: rs0
+        readPreference: secondaryPreferred
+        ssl: true
+
+websocket:
+  endpoint: /ws
+  allowed-origins: "*"
+  
+aws:
+  s3:
+    bucket-name: wowelang-chat-media-dev
+    region: ap-northeast-2
+    presigned-url-expiration: 15 # minutes
+  # accessKey와 secretKey는 환경 변수로 주입됩니다
+
+chat:
+  message:
+    max-text-length: 2000
+  pagination:
+    default-size: 30
+    max-size: 100
+  room:
+    deleted-ttl-days: 30 
