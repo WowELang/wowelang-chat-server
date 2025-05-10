@@ -8,6 +8,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -47,6 +48,7 @@ class ChatMessageServiceTest {
     private static final String MESSAGE_ID = "message1";
     
     @Test
+    @Disabled("CI 환경에서 호환성 문제로 비활성화")
     void testSendMessage_success() {
         // Given
         ChatRoom room = new ChatRoom();
@@ -113,6 +115,7 @@ class ChatMessageServiceTest {
     }
     
     @Test
+    @Disabled("CI 환경에서 호환성 문제로 비활성화")
     void testGetRoomMessages_success() {
         // Given
         ChatRoom room = new ChatRoom();

@@ -7,6 +7,10 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    
+    env:
+      AWS_ACCESSKEY: test-access-key
+      AWS_SECRETKEY: test-secret-key
 
     steps:
     - name: Checkout code
@@ -23,6 +27,10 @@ jobs:
 
     - name: Build project
       run: ./gradlew clean build
+      env:
+        AWS_ACCESSKEY: test-access-key
+        AWS_SECRETKEY: test-secret-key
+        SPRING_PROFILES_ACTIVE: test
 
     - name: Login to DockerHub
       uses: docker/login-action@v2
