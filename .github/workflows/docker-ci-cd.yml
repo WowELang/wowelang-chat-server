@@ -85,21 +85,21 @@ jobs:
     - name: Deploy to EC2 (직접 SSH 명령 사용)
       continue-on-error: true
       run: |
-        ssh -i ~/.ssh/id_rsa -o ServerAliveInterval=60 -o ServerAliveCountMax=30 ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "
-          echo '도커 이미지 가져오는 중...' &&
-          docker pull ${{ secrets.DOCKER_USERNAME }}/chat-server &&
-          echo '기존 컨테이너 정리 중...' &&
-          docker stop chat-server || true &&
-          docker rm chat-server || true &&
-          echo '새 컨테이너 시작 중...' &&
+        ssh -i ~/.ssh/id_rsa -o ServerAliveInterval=60 -o ServerAliveCountMax=30 ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} '
+          echo "도커 이미지 가져오는 중..."
+          docker pull ${{ secrets.DOCKER_USERNAME }}/chat-server
+          echo "기존 컨테이너 정리 중..."
+          docker stop chat-server || true
+          docker rm chat-server || true
+          echo "새 컨테이너 시작 중..."
           docker run -d --name chat-server -p 8080:8080 \
             -e SPRING_PROFILES_ACTIVE=prod \
             -e AWS_ACCESSKEY=${{ secrets.AWS_ACCESS_KEY_ID }} \
             -e AWS_SECRETKEY=${{ secrets.AWS_SECRET_ACCESS_KEY }} \
             -e SPRING_DATA_MONGODB_URI=${{ secrets.MONGODB_URI }} \
-            ${{ secrets.DOCKER_USERNAME }}/chat-server &&
-          echo '배포 완료!'
-        "
+            ${{ secrets.DOCKER_USERNAME }}/chat-server
+          echo "배포 완료!"
+        '
       
     - name: Deployment Status
       run: |
