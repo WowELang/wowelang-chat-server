@@ -168,3 +168,7 @@ POST /attachments/presign?mime=image/jpeg
 1. Java 빌드 및 테스트
 2. Docker 이미지 빌드 및 푸시
 3. AWS EC2 인스턴스에 SSH 연결 및 배포 
+
+## CI/CD 트리거
+
+마지막 워크플로우 트리거: 2025-05-10 10:30 
