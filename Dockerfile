@@ -17,4 +17,4 @@ RUN echo "JAVA_HOME is: $JAVA_HOME" \
 
 ARG JAR_FILE=build/libs/*.jar
 COPY ${JAR_FILE} app.jar
-ENTRYPOINT ["java", "-Djavax.net.ssl.trustStore=$JAVA_HOME/lib/security/cacerts", "-Djavax.net.ssl.trustStorePassword=changeit", "-jar", "/app.jar"]
+ENTRYPOINT ["java", "-jar", "/app.jar"]
