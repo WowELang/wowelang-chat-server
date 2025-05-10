@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>채팅 WebSocket 테스트</title>
+    <meta charset="UTF-8">
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .form-group { margin-bottom: 15px; }
+        label { display: inline-block; width: 100px; }
+        input[type="text"] { width: 250px; padding: 5px; }
+        button { padding: 5px 10px; margin-right: 10px; }
+        #messages { height: 400px; border: 1px solid #ccc; padding: 10px; overflow-y: scroll; margin-top: 20px; }
+        .message { margin-bottom: 10px; padding: 8px; border-radius: 5px; }
+        .sent { background-color: #e1ffc7; margin-left: 50px; }
+        .received { background-color: #f0f0f0; margin-right: 50px; }
+        .system { color: #666; font-style: italic; text-align: center; }
+        .timestamp { font-size: 0.8em; color: #666; }
+        .image-preview { max-width: 200px; max-height: 200px; margin-top: 10px; }
+        .message-image { max-width: 300px; max-height: 300px; border-radius: 5px; }
+        .file-upload { margin-top: 10px; }
+        .correction-btn { font-size: 0.8em; color: #4285f4; cursor: pointer; margin-top: 5px; }
+        .correction-form { margin-top: 5px; display: none; }
+        .correction-message { background-color: #fff8dc; border-left: 3px solid #ffeb3b; padding: 5px; margin-top: 5px; }
+        .original-text { color: #f44336; text-decoration: line-through; }
+        .corrected-text { color: #4caf50; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>채팅 WebSocket 테스트</h1>
+        
+        <div class="form-group">
+            <label for="userId">사용자 ID:</label>
+            <input type="text" id="userId" value="user1">
+        </div>
+        
+        <div class="form-group">
+            <label for="roomId">채팅방 ID:</label>
+            <input type="text" id="roomId" placeholder="채팅방 ID를 입력하세요">
+        </div>
+        
+        <button onclick="connect()">연결</button>
+        <button onclick="disconnect()">연결 해제</button>
+        
+        <div id="connection-status">상태: 연결 안됨</div>
+        
+        <div class="form-group" style="margin-top: 20px;">
+            <label for="messageContent">메시지:</label>
+            <input type="text" id="messageContent" placeholder="메시지를 입력하세요" disabled>
+            <button onclick="sendTextMessage()" id="sendBtn" disabled>전송</button>
+        </div>
+        
+        <div class="form-group file-upload">
+            <label for="imageFile">이미지:</label>
+            <input type="file" id="imageFile" accept="image/*" disabled>
+            <button onclick="uploadAndSendImage()" id="sendImageBtn" disabled>이미지 전송</button>
+            <div>
+                <img id="imagePreview" class="image-preview" style="display: none;">
+                <div id="uploadStatus"></div>
+            </div>
+        </div>
+        
+        <div style="margin-top: 10px;">
+            <button onclick="sendPing()" id="pingBtn" disabled>핑 테스트</button>
+            <span id="pong-result"></span>
+        </div>
+        
+        <h2>메시지</h2>
+        <div id="messages"></div>
+    </div>
+
+    <script>
+        let stompClient = null;
+        let messageCache = {}; // 메시지 ID를 키로 하여 메시지 내용을 저장
+        
+        function connect() {
+            const userId = document.getElementById('userId').value;
+            const roomId = document.getElementById('roomId').value;
+            
+            if (!userId || !roomId) {
+                alert('사용자 ID와 채팅방 ID를 입력하세요.');
+                return;
+            }
+            
+            // 상태 업데이트
+            document.getElementById('connection-status').textContent = '상태: 연결 중...';
+            addMessage('system', null, '연결 시도 중...');
+            
+            // SockJS와 STOMP 클라이언트 생성
+            const socket = new SockJS('http://localhost:8080/ws', null, {
+            transports: ['websocket', 'xhr-streaming', 'xhr-polling']
+        });
+            stompClient = Stomp.over(socket);
+            
+            // 디버그 로그 비활성화
+            stompClient.debug = null;
+            
+            // 연결 헤더 설정
+            const headers = {
+                'X-User-Id': userId
+            };
+            
+            // 연결
+            stompClient.connect(headers, function(frame) {
+                console.log('Connected: ' + frame);
+                document.getElementById('connection-status').textContent = '상태: 연결됨';
+                addMessage('system', null, '연결 성공!');
+                
+                // 메시지 입력 활성화
+                document.getElementById('messageContent').disabled = false;
+                document.getElementById('sendBtn').disabled = false;
+                document.getElementById('imageFile').disabled = false;
+                document.getElementById('sendImageBtn').disabled = false;
+                
+                // 채팅방 토픽 구독
+                stompClient.subscribe('/topic/chat.' + roomId, function(message) {
+                    const receivedMsg = JSON.parse(message.body);
+                    console.log('Received message:', receivedMsg);
+                    
+                    // 메시지 캐시에 저장
+                    messageCache[receivedMsg.id] = receivedMsg;
+                    
+                    // 메시지 표시
+                    const isMyMessage = receivedMsg.senderId === userId;
+                    
+                    // 메시지 유형에 따라 처리
+                    if (receivedMsg.type === 'IMAGE') {
+                        addImageMessage(isMyMessage ? 'sent' : 'received', receivedMsg.senderId, receivedMsg.s3Key, receivedMsg.createdAt, receivedMsg.id);
+                    } else if (receivedMsg.type === 'CORRECTION') {
+                        addCorrectionMessage(isMyMessage ? 'sent' : 'received', receivedMsg.senderId, receivedMsg.originalMessageId, receivedMsg.content, receivedMsg.createdAt);
+                    } else {
+                        addMessage(isMyMessage ? 'sent' : 'received', receivedMsg.senderId, receivedMsg.content, receivedMsg.createdAt, receivedMsg.id);
+                    }
+                });
+                
+                // 연결 성공 후 코드에 추가 (stompClient.connect 콜백 내부)
+                stompClient.subscribe('/topic/pong', function(response) {
+                    console.log('Pong response:', response.body);
+                    document.getElementById('pong-result').textContent = '응답: ' + response.body;
+                    setTimeout(() => {
+                        document.getElementById('pong-result').textContent = '';
+                    }, 3000); // 3초 후 메시지 삭제
+                });
+                
+                // 핑 버튼 활성화
+                document.getElementById('pingBtn').disabled = false;
+            }, function(error) {
+                console.error('STOMP error:', error);
+                document.getElementById('connection-status').textContent = '상태: 연결 실패';
+                addMessage('system', null, '연결 실패: ' + error);
+            });
+        }
+        
+        function disconnect() {
+            if (stompClient !== null) {
+                stompClient.disconnect();
+                stompClient = null;
+                
+                // 상태 업데이트
+                document.getElementById('connection-status').textContent = '상태: 연결 안됨';
+                addMessage('system', null, '연결이 종료되었습니다.');
+                
+                // UI 요소 비활성화
+                document.getElementById('messageContent').disabled = true;
+                document.getElementById('sendBtn').disabled = true;
+                document.getElementById('imageFile').disabled = true;
+                document.getElementById('sendImageBtn').disabled = true;
+                document.getElementById('pingBtn').disabled = true;
+            }
+        }
+        
+        function sendTextMessage() {
+            const roomId = document.getElementById('roomId').value;
+            const content = document.getElementById('messageContent').value;
+            
+            if (!content) {
+                alert('메시지를 입력하세요.');
+                return;
+            }
+            
+            const chatMessage = {
+                type: 'TEXT',
+                content: content
+            };
+            
+            stompClient.send('/app/chat.send.' + roomId, {}, JSON.stringify(chatMessage));
+            document.getElementById('messageContent').value = '';
+        }
+        
+        // 이미지 업로드 및 전송 함수
+        async function uploadAndSendImage() {
+            const userId = document.getElementById('userId').value;
+            const roomId = document.getElementById('roomId').value;
+            const fileInput = document.getElementById('imageFile');
+            
+            if (!fileInput.files || fileInput.files.length === 0) {
+                alert('이미지 파일을 선택하세요.');
+                return;
+            }
+            
+            const file = fileInput.files[0];
+            const statusDiv = document.getElementById('uploadStatus');
+            
+            try {
+                statusDiv.textContent = '프리사인드 URL 요청 중...';
+                
+                // 1. 프리사인드 URL 요청
+                const response = await fetch('http://localhost:8080/attachments/presign', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-Id': userId
+                    },
+                    body: JSON.stringify({
+                        mimeType: file.type
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('프리사인드 URL 요청 실패: ' + response.status);
+                }
+                
+                const presignedData = await response.json();
+                console.log('Presigned URL received:', presignedData);
+                
+                // 2. S3에 이미지 업로드
+                statusDiv.textContent = '이미지 업로드 중...';
+                const uploadResponse = await fetch(presignedData.url, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': file.type
+                    },
+                    body: file
+                });
+                
+                if (!uploadResponse.ok) {
+                    throw new Error('이미지 업로드 실패: ' + uploadResponse.status);
+                }
+                
+                console.log('Image uploaded successfully');
+                statusDiv.textContent = '업로드 완료! 메시지 전송 중...';
+                
+                // 3. 이미지 메시지 전송
+                const chatMessage = {
+                    type: 'IMAGE',
+                    s3Key: presignedData.s3Key
+                };
+                
+                stompClient.send('/app/chat.send.' + roomId, {}, JSON.stringify(chatMessage));
+                
+                // 4. 상태 및 UI 정리
+                statusDiv.textContent = '이미지 전송 완료!';
+                setTimeout(() => { 
+                    statusDiv.textContent = '';
+                    document.getElementById('imagePreview').style.display = 'none';
+                    fileInput.value = '';
+                }, 3000);
+                
+            } catch (error) {
+                console.error('Error uploading image:', error);
+                statusDiv.textContent = '오류: ' + error.message;
+            }
+        }
+        
+        // 메시지 교정 함수
+        function sendCorrectionMessage(originalMessageId, correctedText) {
+            const roomId = document.getElementById('roomId').value;
+            
+            const chatMessage = {
+                type: 'CORRECTION',
+                originalMessageId: originalMessageId,
+                content: correctedText
+            };
+            
+            stompClient.send('/app/chat.send.' + roomId, {}, JSON.stringify(chatMessage));
+        }
+        
+        // 교정 폼 표시
+        function showCorrectionForm(messageId) {
+            const message = messageCache[messageId];
+            if (!message) return;
+            
+            const formId = 'correction-form-' + messageId;
+            const existingForm = document.getElementById(formId);
+            
+            if (existingForm) {
+                existingForm.style.display = existingForm.style.display === 'none' ? 'block' : 'none';
+                return;
+            }
+            
+            const targetElement = document.querySelector(`.message[data-message-id="${messageId}"]`);
+            if (!targetElement) return;
+            
+            const correctionForm = document.createElement('div');
+            correctionForm.id = formId;
+            correctionForm.className = 'correction-form';
+            correctionForm.innerHTML = `
+                <input type="text" id="correction-text-${messageId}" value="${message.content}" style="width: 80%;">
+                <button onclick="submitCorrection('${messageId}')">교정</button>
+            `;
+            
+            targetElement.appendChild(correctionForm);
+        }
+        
+        // 교정 제출
+        function submitCorrection(messageId) {
+            const correctionTextInput = document.getElementById('correction-text-' + messageId);
+            if (!correctionTextInput) return;
+            
+            const correctedText = correctionTextInput.value;
+            if (!correctedText || correctedText.trim() === '') {
+                alert('교정 내용을 입력하세요.');
+                return;
+            }
+            
+            sendCorrectionMessage(messageId, correctedText);
+            
+            // 폼 숨기기
+            const formElement = document.getElementById('correction-form-' + messageId);
+            if (formElement) {
+                formElement.style.display = 'none';
+            }
+        }
+        
+        // 이미지 파일 선택시 미리보기 표시
+        document.getElementById('imageFile').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file && file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const preview = document.getElementById('imagePreview');
+                    preview.src = e.target.result;
+                    preview.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+        
+        function addMessage(type, sender, content, timestamp, messageId) {
+            const messagesDiv = document.getElementById('messages');
+            const messageElement = document.createElement('div');
+            messageElement.className = 'message ' + type;
+            if (messageId) {
+                messageElement.setAttribute('data-message-id', messageId);
+            }
+            
+            let html = '';
+            if (type === 'system') {
+                html = `<div class="system">${content}</div>`;
+            } else {
+                html = `<div><strong>${sender}</strong>: ${content}</div>`;
+                if (timestamp) {
+                    const date = new Date(timestamp);
+                    html += `<div class="timestamp">${date.toLocaleTimeString()}</div>`;
+                }
+                
+                // 자신이 보낸 메시지가 아니고 교정 버튼이 필요한 경우에만 추가
+                if (type === 'received' && messageId) {
+                    html += `<div class="correction-btn" onclick="showCorrectionForm('${messageId}')">교정하기</div>`;
+                }
+            }
+            
+            messageElement.innerHTML = html;
+            messagesDiv.appendChild(messageElement);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+        
+        function addImageMessage(type, sender, s3Key, timestamp, messageId) {
+            const messagesDiv = document.getElementById('messages');
+            const messageElement = document.createElement('div');
+            messageElement.className = 'message ' + type;
+            if (messageId) {
+                messageElement.setAttribute('data-message-id', messageId);
+            }
+            
+            // S3 이미지 URL 생성 (여기서는 실제 환경의 버킷 이름으로 수정 필요)
+            const imageUrl = `https://wowelang-chat-media-dev.s3.ap-northeast-2.amazonaws.com/${s3Key}`;
+            
+            let html = `<div><strong>${sender}</strong>:</div>
+                      <div><img src="${imageUrl}" class="message-image" alt="이미지" /></div>`;
+                      
+            if (timestamp) {
+                const date = new Date(timestamp);
+                html += `<div class="timestamp">${date.toLocaleTimeString()}</div>`;
+            }
+            
+            messageElement.innerHTML = html;
+            messagesDiv.appendChild(messageElement);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+        
+        function addCorrectionMessage(type, sender, originalMessageId, correctedText, timestamp) {
+            const messagesDiv = document.getElementById('messages');
+            const messageElement = document.createElement('div');
+            messageElement.className = 'message ' + type;
+            
+            // 원본 메시지 찾기
+            const originalMessage = messageCache[originalMessageId];
+            
+            if (!originalMessage) {
+                // 원본 메시지를 찾을 수 없는 경우
+                let html = `<div><strong>${sender}</strong>의 교정:</div>
+                          <div>원본 메시지를 찾을 수 없습니다.</div>
+                          <div>교정: ${correctedText}</div>`;
+                
+                if (timestamp) {
+                    const date = new Date(timestamp);
+                    html += `<div class="timestamp">${date.toLocaleTimeString()}</div>`;
+                }
+                
+                messageElement.innerHTML = html;
+                messagesDiv.appendChild(messageElement);
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                return;
+            }
+            
+            // 원본 메시지와 교정 메시지 표시
+            let html = `<div><strong>${sender}</strong>의 교정:</div>
+                      <div class="correction-message">
+                        <div>원본 (<strong>${originalMessage.senderId}</strong>): <span class="original-text">${originalMessage.content}</span></div>
+                        <div>교정: <span class="corrected-text">${correctedText}</span></div>
+                      </div>`;
+            
+            if (timestamp) {
+                const date = new Date(timestamp);
+                html += `<div class="timestamp">${date.toLocaleTimeString()}</div>`;
+            }
+            
+            messageElement.innerHTML = html;
+            messagesDiv.appendChild(messageElement);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+        
+        // 엔터 키로 메시지 전송
+        document.getElementById('messageContent').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendTextMessage();
+            }
+        });
+        
+        // 핑 전송 함수
+        function sendPing() {
+            if (stompClient !== null) {
+                const timestamp = new Date().toISOString();
+                stompClient.send('/app/ping', {}, 'ping at ' + timestamp);
+                document.getElementById('pong-result').textContent = '핑 전송 중...';
+            } else {
+                alert('먼저 연결하세요');
+            }
+        }
+    </script>
+</body>
+</html>
