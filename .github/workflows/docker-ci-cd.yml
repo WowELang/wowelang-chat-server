@@ -66,6 +66,7 @@ jobs:
         ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
     - name: Check EC2 Connection
+      id: connection_test
       run: |
         echo "EC2 호스트: ${{ secrets.EC2_HOST }}"
         echo "EC2 연결 테스트 중..."
@@ -73,45 +74,74 @@ jobs:
         # 직접 SSH 명령어로 연결 테스트
         if ssh -i ~/.ssh/id_rsa -o ConnectTimeout=10 ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "echo 연결 성공"; then
           echo "✅ EC2 SSH 연결 성공"
+          echo "connection_success=true" >> $GITHUB_OUTPUT
         else
           echo "❌ EC2 SSH 연결 실패"
           echo "문제 진단 정보 수집 중..."
           sudo apt-get update && sudo apt-get install -y traceroute
           traceroute -T -p 22 ${{ secrets.EC2_HOST }}
           
-          echo "::warning::EC2 접속 테스트 실패, 배포가 실패할 수 있습니다."
+          echo "::error::EC2 접속 테스트 실패, 배포를 진행할 수 없습니다"
+          echo "connection_success=false" >> $GITHUB_OUTPUT
+          exit 1
         fi
 
-    - name: Deploy to EC2 (직접 SSH 명령 사용)
-      continue-on-error: true
+    - name: Deploy to EC2
+      if: steps.connection_test.outputs.connection_success == 'true'
       run: |
         ssh -i ~/.ssh/id_rsa -o ServerAliveInterval=60 -o ServerAliveCountMax=30 ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} '
+          echo "===== 배포 시작 ====="
           echo "도커 이미지 가져오는 중..."
           docker pull ${{ secrets.DOCKER_USERNAME }}/chat-server
+          
           echo "기존 컨테이너 정리 중..."
-          docker stop chat-server || true
-          docker rm chat-server || true
+          docker stop chat-server || echo "기존 컨테이너가 없거나 중지할 수 없습니다"
+          docker rm chat-server || echo "기존 컨테이너가 없거나 삭제할 수 없습니다"
+          
           echo "새 컨테이너 시작 중..."
+          # MongoDB URI 변수 설정
+          MONGODB_URI="${{ secrets.MONGODB_URI }}?tls=true&replicaSet=rs0&readPreference=secondaryPreferred&retryWrites=false&tlsAllowInvalidHostnames=true"
+          echo "MongoDB URI 형식 확인: $(echo "$MONGODB_URI" | sed "s/:[^/]*@/:\*\*\*@/")"
+          
+          # 컨테이너 실행, 큰따옴표로 환경변수 감싸기
           docker run -d --name chat-server -p 8080:8080 \
             -e SPRING_PROFILES_ACTIVE=prod \
             -e AWS_ACCESSKEY=${{ secrets.AWS_ACCESS_KEY_ID }} \
             -e AWS_SECRETKEY=${{ secrets.AWS_SECRET_ACCESS_KEY }} \
-            -e SPRING_DATA_MONGODB_URI='${{ secrets.MONGODB_URI }}?tls=true&replicaSet=rs0&readPreference=secondaryPreferred&retryWrites=false&tlsAllowInvalidHostnames=true' \
+            -e SPRING_DATA_MONGODB_URI="$MONGODB_URI" \
             ${{ secrets.DOCKER_USERNAME }}/chat-server
-          echo "배포 완료!"
+          
+          # 컨테이너 상태 확인
+          CONTAINER_ID=$(docker ps -q -f name=chat-server)
+          
+          if [ -n "$CONTAINER_ID" ]; then
+            echo "✅ 컨테이너가 성공적으로 시작되었습니다. ID: $CONTAINER_ID"
+            
+            # 로그 일부 확인
+            echo "컨테이너 로그 확인 중..."
+            sleep 5  # 로그 생성 대기
+            docker logs --tail 20 chat-server
+            
+            # 애플리케이션 상태 확인
+            echo "애플리케이션 상태 확인 중..."
+            if curl -s localhost:8080 &>/dev/null; then
+              echo "✅ 애플리케이션이 정상적으로 응답합니다."
+              exit 0
+            else
+              echo "⚠️ 애플리케이션이 응답하지 않습니다. 추가 점검이 필요합니다."
+            fi
+          else
+            echo "❌ 컨테이너 시작 실패! 컨테이너 상태 확인:"
+            docker ps -a | grep chat-server || echo "컨테이너를 찾을 수 없습니다"
+            echo "컨테이너 로그:"
+            docker logs chat-server || echo "로그를 확인할 수 없습니다"
+            exit 1
+          fi
+          
+          echo "===== 배포 완료 ====="
         '
       
     - name: Deployment Status
       run: |
-        if [ ${{ job.status }} == 'success' ]; then
-          echo "✅ 배포 성공!"
-        else
-          echo "❌ 배포 실패. 가능한 원인:"
-          echo "1. EC2 인스턴스가 실행 중인지 확인하세요."
-          echo "2. 보안 그룹에서 22번 포트(SSH)가 GitHub Actions 호스트에 열려있는지 확인하세요."
-          echo "3. GitHub Secrets의 EC2_HOST, EC2_USER, EC2_KEY 값이 올바른지 확인하세요."
-          echo "4. EC2 인스턴스의 퍼블릭 IP가 변경되었는지 확인하세요."
-          
-          # 워크플로우는 성공으로 표시하고 경고만 출력
-          echo "::warning::EC2 배포에 실패했지만 Docker 이미지는 성공적으로 업로드되었습니다."
-        fi
+        echo "✅ 배포 성공!"
+        echo "서버 접속 URL: http://${{ secrets.EC2_HOST }}:8080"
