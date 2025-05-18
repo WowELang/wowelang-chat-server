@@ -11,6 +11,15 @@ spring:
         readPreference: secondaryPreferred
         ssl: true
 
+logging:
+  level:
+    root: INFO
+    org.springframework.web: DEBUG
+    org.springframework.web.socket: DEBUG
+    org.springframework.messaging: DEBUG
+    org.apache.tomcat.websocket: DEBUG
+    com.wowelang.chatserver: DEBUG
+
 websocket:
   endpoint: /ws
   allowed-origins: "*"
