@@ -39,7 +39,7 @@ public class ChatMessage {
     
     private String s3Key; // 이미지 메시지용
     
-    private String originalMessageId; // 교정 메시지용
+    private String originalMessage; // 교정 메시지용 원본 텍스트
     
     private Instant createdAt;
     

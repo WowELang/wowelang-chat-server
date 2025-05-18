@@ -32,7 +32,7 @@ public class ChatMessageDto {
     
     private String s3Key;
     
-    private String originalMessageId;
+    private String originalMessage;
     
     private String correctedText;
     

@@ -56,7 +56,7 @@ public class ChatMessageService {
                 .type(messageDto.getType())
                 .content(messageDto.getContent())
                 .s3Key(messageDto.getS3Key())
-                .originalMessageId(messageDto.getOriginalMessageId())
+                .originalMessage(messageDto.getOriginalMessage())
                 .build();
         
         ChatMessage savedMessage = chatMessageRepository.save(chatMessage);
@@ -125,7 +125,7 @@ public class ChatMessageService {
                 .type(message.getType())
                 .content(message.isDeleted() ? null : message.getContent())
                 .s3Key(message.isDeleted() ? null : message.getS3Key())
-                .originalMessageId(message.getOriginalMessageId())
+                .originalMessage(message.getOriginalMessage())
                 .createdAt(message.getCreatedAt())
                 .deleted(message.isDeleted())
                 .build();
@@ -153,8 +153,8 @@ public class ChatMessageService {
                 break;
                 
             case CORRECTION:
-                if (messageDto.getOriginalMessageId() == null || messageDto.getOriginalMessageId().isBlank()) {
-                    throw new IllegalArgumentException("Correction message must have original message ID");
+                if (messageDto.getOriginalMessage() == null || messageDto.getOriginalMessage().isBlank()) {
+                    throw new IllegalArgumentException("Correction message must have original message text");
                 }
                 if (messageDto.getContent() == null || messageDto.getContent().isBlank()) {
                     throw new IllegalArgumentException("Correction message must have corrected text");
@@ -162,10 +162,11 @@ public class ChatMessageService {
                 if (messageDto.getContent().length() > maxTextLength) {
                     throw new IllegalArgumentException("Corrected text too long, maximum " + maxTextLength + " characters");
                 }
+                if (messageDto.getOriginalMessage().length() > maxTextLength) {
+                    throw new IllegalArgumentException("Original message text too long, maximum " + maxTextLength + " characters");
+                }
                 
-                // 원본 메시지가 존재하는지 확인
-                chatMessageRepository.findById(messageDto.getOriginalMessageId())
-                        .orElseThrow(() -> new ResourceNotFoundException("Original message not found"));
+                // 원본 메시지 ID 검증 로직 제거 (이제 원본 텍스트를 직접 저장하므로 불필요)
                 break;
                 
             default:
