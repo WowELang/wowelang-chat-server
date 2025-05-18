@@ -66,7 +66,7 @@ public class ChatRoomService {
                 .type(message.getType())
                 .content(message.isDeleted() ? null : message.getContent())
                 .s3Key(message.isDeleted() ? null : message.getS3Key())
-                .originalMessageId(message.getOriginalMessageId())
+                .originalMessage(message.getOriginalMessage())
                 .createdAt(message.getCreatedAt())
                 .deleted(message.isDeleted())
                 .build();
