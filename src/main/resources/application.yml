@@ -18,7 +18,7 @@ logging:
     com.wowelang.chatserver: DEBUG
 
 websocket:
-  endpoint: /ws
+  endpoint: /chat-websocket
   allowed-origins: "*"
   
 aws:
