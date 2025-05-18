@@ -20,8 +20,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Value("${websocket.endpoint}")
     private String endpoint;
 
-    @Value("${websocket.allowed-origins}")
-    private String allowedOrigins;
+    // allowedOrigins 변수는 현재 setAllowedOriginPatterns("*")로 대체되었으므로 주석 처리하거나 삭제 가능
+    // @Value("${websocket.allowed-origins}")
+    // private String allowedOrigins;
 
     private final UserIdChannelInterceptor userIdChannelInterceptor;
 
@@ -35,8 +36,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint(endpoint)
-        .setAllowedOriginPatterns("*")  
-                .withSockJS();
+                .setAllowedOriginPatterns("*");  // .withSockJS() 제거
     }
 
     @Override
