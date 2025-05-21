@@ -18,7 +18,14 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(userIdInterceptor)
-                .excludePathPatterns("/ws/**", "/chat-websocket/**");
+                .excludePathPatterns(
+                    "/ws/**", 
+                    "/chat-websocket/**",
+                    "/web/**",
+                    "/error",
+                    "/favicon.ico",
+                    "/test.html"
+                );
     }
     
     @Override
