@@ -7,9 +7,14 @@ import org.springframework.messaging.simp.config.MessageBrokerRegistry;
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
+import org.springframework.web.socket.config.annotation.WebSocketTransportRegistration;
+import org.springframework.web.socket.WebSocketHandler;
+import org.springframework.web.socket.handler.WebSocketHandlerDecorator;
+import org.springframework.web.socket.handler.WebSocketHandlerDecoratorFactory;
 
 import com.wowelang.chatserver.interceptor.StompFrameDebugInterceptor;
 import com.wowelang.chatserver.interceptor.UserIdChannelInterceptor;
+import com.wowelang.chatserver.decorator.EmaWebSocketHandlerDecorator;
 
 import lombok.RequiredArgsConstructor;
 
@@ -45,5 +50,15 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     public void configureClientInboundChannel(ChannelRegistration registration) {
         // StompFrameDebugInterceptor를 먼저 등록하여 원시 프레임을 먼저 로깅
         registration.interceptors(stompFrameDebugInterceptor, userIdChannelInterceptor);
+    }
+    
+    @Override
+    public void configureWebSocketTransport(WebSocketTransportRegistration registration) {
+        registration.addDecoratorFactory(new WebSocketHandlerDecoratorFactory() {
+            @Override
+            public WebSocketHandler decorate(WebSocketHandler webSocketHandler) {
+                return new EmaWebSocketHandlerDecorator(webSocketHandler);
+            }
+        });
     }
 } 
