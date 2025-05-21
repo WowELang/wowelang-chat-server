@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STOMP 프레임 디버깅</title>
+    <script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7.0.0/bundles/stomp.umd.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .log-container { 
+            height: 300px; 
+            overflow-y: auto; 
+            border: 1px solid #ccc; 
+            padding: 10px;
+            margin-bottom: 10px;
+            background-color: #f5f5f5;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+        button { margin-right: 10px; padding: 5px 10px; }
+        input { padding: 5px; width: 200px; margin-bottom: 5px; }
+        .frame-container {
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin: 20px 0;
+        }
+        label {
+            display: block;
+            margin-top: 10px;
+        }
+        textarea {
+            width: 100%;
+            height: 150px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <h1>STOMP 프레임 디버깅</h1>
+    
+    <div>
+        <label for="serverUrl">서버 URL:</label>
+        <input type="text" id="serverUrl" value="ws://localhost:8080/chat-websocket">
+    </div>
+    <div>
+        <label for="debugUrl">디버그 URL:</label>
+        <input type="text" id="debugUrl" value="ws://localhost:8080/chat-websocket-debug">
+    </div>
+    <div>
+        <label for="userId">사용자 ID:</label>
+        <input type="text" id="userId" value="testuser">
+    </div>
+    
+    <!-- 표준 연결 -->
+    <div class="frame-container">
+        <h3>표준 StompJS 연결</h3>
+        <button id="connectBtn">연결</button>
+        <button id="disconnectBtn" disabled>연결 해제</button>
+    </div>
+    
+    <!-- 커스텀 프레임 테스트 -->
+    <div class="frame-container">
+        <h3>커스텀 STOMP 프레임 전송</h3>
+        <label for="customFrame">STOMP 프레임:</label>
+        <textarea id="customFrame">CONNECT
+accept-version:1.0,1.1,1.2
+host:localhost
+X-User-Id:testuser
+
+</textarea>
+        <div>
+            <label>
+                <input type="checkbox" id="appendNull" checked> NULL 문자 추가
+            </label>
+        </div>
+        <button id="sendCustomFrameBtn">디버그 모드로 전송</button>
+    </div>
+    
+    <h3>로그:</h3>
+    <div class="log-container" id="logContainer"></div>
+    
+    <script>
+        let stompClient = null;
+        let rawWsConnection = null;
+        const logContainer = document.getElementById('logContainer');
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const serverUrlInput = document.getElementById('serverUrl');
+        const debugUrlInput = document.getElementById('debugUrl');
+        const userIdInput = document.getElementById('userId');
+        const customFrameTextarea = document.getElementById('customFrame');
+        const appendNullCheckbox = document.getElementById('appendNull');
+        const sendCustomFrameBtn = document.getElementById('sendCustomFrameBtn');
+        
+        function logMessage(message, type = 'info') {
+            const logEntry = document.createElement('div');
+            logEntry.className = type;
+            logEntry.textContent = `${new Date().toISOString()} - ${message}`;
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+        
+        // 일반 STOMP 연결
+        function connect() {
+            const serverUrl = serverUrlInput.value.trim();
+            const userId = userIdInput.value.trim();
+            
+            if (!serverUrl || !userId) {
+                logMessage('서버 URL과 사용자 ID를 입력하세요.', 'error');
+                return;
+            }
+            
+            try {
+                logMessage(`서버 ${serverUrl}에 연결 시도중...`);
+                
+                const client = new StompJs.Client({
+                    brokerURL: serverUrl,
+                    connectHeaders: {
+                        'X-User-Id': userId
+                    },
+                    debug: function(str) {
+                        logMessage(`STOMP: ${str}`);
+                    },
+                    heartbeatIncoming: 4000,
+                    heartbeatOutgoing: 4000
+                });
+                
+                client.onConnect = function() {
+                    logMessage('STOMP 서버에 연결되었습니다!', 'success');
+                    connectBtn.disabled = true;
+                    disconnectBtn.disabled = false;
+                };
+                
+                client.onStompError = function(frame) {
+                    logMessage(`STOMP 오류: ${frame.headers['message']}`, 'error');
+                    logMessage(`상세 내용: ${frame.body}`, 'error');
+                };
+                
+                client.onWebSocketError = function(event) {
+                    logMessage('웹소켓 오류가 발생했습니다.', 'error');
+                    connectBtn.disabled = false;
+                    disconnectBtn.disabled = true;
+                };
+                
+                client.onWebSocketClose = function(event) {
+                    logMessage(`웹소켓 연결이 닫혔습니다. 코드: ${event.code}, 이유: ${event.reason || '알 수 없음'}`, 'info');
+                    connectBtn.disabled = false;
+                    disconnectBtn.disabled = true;
+                };
+                
+                client.activate();
+                stompClient = client;
+                
+            } catch (e) {
+                logMessage(`연결 오류: ${e.message}`, 'error');
+            }
+        }
+        
+        function disconnect() {
+            if (stompClient) {
+                stompClient.deactivate();
+                stompClient = null;
+                logMessage('STOMP 연결을 해제했습니다.', 'info');
+                connectBtn.disabled = false;
+                disconnectBtn.disabled = true;
+            }
+        }
+        
+        // 커스텀 프레임 전송
+        function sendCustomFrame() {
+            const debugUrl = debugUrlInput.value.trim();
+            let frameContent = customFrameTextarea.value;
+            
+            if (!debugUrl) {
+                logMessage('디버그 URL을 입력하세요.', 'error');
+                return;
+            }
+            
+            if (!frameContent) {
+                logMessage('STOMP 프레임을 입력하세요.', 'error');
+                return;
+            }
+            
+            // NULL 종결자 추가 여부 확인
+            if (appendNullCheckbox.checked) {
+                frameContent += '\0';
+            }
+            
+            try {
+                // 기존 연결 닫기
+                if (rawWsConnection && rawWsConnection.readyState === WebSocket.OPEN) {
+                    rawWsConnection.close();
+                }
+                
+                // 새 웹소켓 연결 생성
+                logMessage(`디버그 모드로 ${debugUrl}에 연결 시도중...`);
+                rawWsConnection = new WebSocket(debugUrl);
+                
+                rawWsConnection.onopen = function() {
+                    logMessage('디버그 웹소켓 연결됨!', 'success');
+                    
+                    // 커스텀 프레임 전송
+                    logMessage(`커스텀 STOMP 프레임 전송 (NULL 종결자: ${appendNullCheckbox.checked}):`);
+                    logMessage(frameContent);
+                    
+                    rawWsConnection.send(frameContent);
+                };
+                
+                rawWsConnection.onmessage = function(event) {
+                    logMessage(`디버그 서버로부터 메시지 수신: ${event.data}`);
+                };
+                
+                rawWsConnection.onerror = function(event) {
+                    logMessage('디버그 웹소켓 오류 발생', 'error');
+                };
+                
+                rawWsConnection.onclose = function(event) {
+                    logMessage(`디버그 웹소켓 연결 종료: 코드=${event.code}, 이유=${event.reason || '알 수 없음'}`);
+                };
+                
+            } catch (e) {
+                logMessage(`디버그 연결 오류: ${e.message}`, 'error');
+            }
+        }
+        
+        connectBtn.addEventListener('click', connect);
+        disconnectBtn.addEventListener('click', disconnect);
+        sendCustomFrameBtn.addEventListener('click', sendCustomFrame);
+        
+        // 페이지 언로드 시 연결 해제
+        window.addEventListener('beforeunload', function() {
+            if (stompClient) {
+                stompClient.deactivate();
+            }
+            if (rawWsConnection) {
+                rawWsConnection.close();
+            }
+        });
+    </script>
+</body>
+</html> 

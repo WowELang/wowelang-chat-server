@@ -21,6 +21,9 @@ logging:
     com.wowelang.chatserver: DEBUG
     org.springframework.messaging.simp.stomp: TRACE
     org.springframework.messaging.simp.stomp.StompDecoder: TRACE
+    com.wowelang.chatserver.interceptor.StompFrameDebugInterceptor: TRACE
+    com.wowelang.chatserver.config.CustomStompWebSocketHandlerConfig: TRACE
+    com.wowelang.chatserver.config.CustomStompWebSocketHandlerConfig$RawWebSocketHandler: TRACE
 
 websocket:
   endpoint: /chat-websocket
