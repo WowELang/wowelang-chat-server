@@ -8,6 +8,7 @@ import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBr
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 
+import com.wowelang.chatserver.interceptor.StompFrameDebugInterceptor;
 import com.wowelang.chatserver.interceptor.UserIdChannelInterceptor;
 
 import lombok.RequiredArgsConstructor;
@@ -25,6 +26,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     // private String allowedOrigins;
 
     private final UserIdChannelInterceptor userIdChannelInterceptor;
+    private final StompFrameDebugInterceptor stompFrameDebugInterceptor;
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
@@ -41,6 +43,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void configureClientInboundChannel(ChannelRegistration registration) {
-        registration.interceptors(userIdChannelInterceptor);
+        // StompFrameDebugInterceptor를 먼저 등록하여 원시 프레임을 먼저 로깅
+        registration.interceptors(stompFrameDebugInterceptor, userIdChannelInterceptor);
     }
 } 
