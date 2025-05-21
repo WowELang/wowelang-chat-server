@@ -26,7 +26,9 @@ public class UserIdChannelInterceptor implements ChannelInterceptor {
 
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
+        log.debug("UserIdChannelInterceptor preSend 진입. Message: {}", message); // 추가된 로그
         StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
+        log.debug("StompHeaderAccessor: {}", accessor); // 추가된 로그
         
         // 추가된 로그: preSend 메서드 호출 및 StompCommand 확인
         if (accessor != null) {
