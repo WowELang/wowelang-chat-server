@@ -15,9 +15,9 @@ logging:
   level:
     root: INFO
     org.springframework.web: DEBUG
-    org.springframework.web.socket: DEBUG
-    org.springframework.messaging: DEBUG
-    org.apache.tomcat.websocket: DEBUG
+    org.springframework.web.socket: TRACE
+    org.springframework.messaging: TRACE
+    org.apache.tomcat.websocket: TRACE
     com.wowelang.chatserver: DEBUG
 
 websocket:
