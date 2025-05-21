@@ -66,7 +66,7 @@
         <h3>커스텀 STOMP 프레임 전송</h3>
         <label for="customFrame">STOMP 프레임:</label>
         <textarea id="customFrame">CONNECT
-accept-version:1.0,1.1,1.2
+accept-version:1.2,1.1,1.0
 host:localhost
 X-User-Id:testuser
 
@@ -125,7 +125,9 @@ X-User-Id:testuser
                         logMessage(`STOMP: ${str}`);
                     },
                     heartbeatIncoming: 4000,
-                    heartbeatOutgoing: 4000
+                    heartbeatOutgoing: 4000,
+                    // 중요: NULL 문자 자동 추가 설정
+                    appendMissingNUL: true
                 });
                 
                 client.onConnect = function() {
