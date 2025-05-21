@@ -31,11 +31,11 @@ public class UserIdChannelInterceptor implements ChannelInterceptor {
         if (accessor != null) {
             // 연결 시 사용자 ID 설정
             if (StompCommand.CONNECT.equals(accessor.getCommand())) {
-                String userId = accessor.getFirstNativeHeader(USER_ID_HEADER);
-                if (userId != null) {
-                    accessor.setUser(() -> userId);
+            String userId = accessor.getFirstNativeHeader(USER_ID_HEADER);
+            if (userId != null) {
+                accessor.setUser(() -> userId);
                     log.debug("사용자 연결: ID={}", userId);
-                } else {
+            } else {
                     log.warn("사용자 ID 없이 연결 시도");
                 }
             } 

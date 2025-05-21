@@ -33,9 +33,12 @@ public class WebSocketEventListener {
     public void handleWebSocketConnectListener(SessionConnectEvent event) {
         StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
         String sessionId = headerAccessor.getSessionId();
-        String userId = headerAccessor.getUser() != null ? headerAccessor.getUser().getName() : null;
-
-        log.debug("웹소켓 연결 요청: 세션 ID={}, 사용자 ID={}", sessionId, userId);
+        // SessionConnectEvent 시점에는 아직 인터셉터에서 setUser()가 완료되지 않았을 수 있어 getUser()가 null일 수 있습니다.
+        String userIdFromPrincipal = headerAccessor.getUser() != null ? headerAccessor.getUser().getName() : "N/A (Principal)";
+        String userIdFromNativeHeader = headerAccessor.getFirstNativeHeader("X-User-Id"); // CONNECT 프레임의 네이티브 헤더 직접 확인
+        
+        log.debug("웹소켓 연결 요청 (SessionConnectEvent): 세션 ID={}, 사용자 ID (Principal)={}, 사용자 ID (X-User-Id Header)={}", 
+                  sessionId, userIdFromPrincipal, userIdFromNativeHeader);
     }
 
     /**
@@ -48,19 +51,25 @@ public class WebSocketEventListener {
         String sessionId = headerAccessor.getSessionId();
         String userId = headerAccessor.getUser() != null ? headerAccessor.getUser().getName() : null;
 
+        // 추가된 로그: 연결 성공 시 userId 값 확인
+        log.info("웹소켓 연결 성공 (SessionConnectedEvent): 세션 ID={}, 사용자 ID={}", sessionId, userId);
+
         if (userId != null && sessionId != null) {
-            // 사용자 세션 등록
+            log.debug("정상적으로 사용자 ID ({}) 와 세션 ID ({})를 확보하여 세션 등록 및 중복 연결 처리를 시작합니다.", userId, sessionId);
             userSessionRegistry.registerSession(userId, sessionId);
             
-            // 중복 연결 확인 및 이전 세션 해제
             int sessionCount = userSessionRegistry.getUserSessionCount(userId);
             if (sessionCount > 1) {
-                // 웹소켓 서비스를 통해 이전 세션들 종료 처리
                 int disconnectedCount = webSocketService.disconnectPreviousUserSessions(userId, sessionId);
-                
                 log.info("사용자의 이전 연결 제거: 사용자 ID={}, 새 세션 ID={}, 종료된 세션 수={}", 
                         userId, sessionId, disconnectedCount);
             }
+        } else {
+            // 추가된 로그: userId 또는 sessionId가 null일 경우 경고
+            log.warn("웹소켓 연결 성공 후 사용자 ID 또는 세션 ID가 null입니다. 세션 등록 실패. 사용자 ID={}, 세션 ID={}", userId, sessionId);
+            // 이 경우, 클라이언트가 X-User-Id를 보내지 않았거나 인터셉터에서 처리가 안됐을 가능성이 높습니다.
+            // 또는, 어떤 이유로든 연결은 되었으나 사용자 정보가 누락된 상황입니다.
+            // 이런 경우 클라이언트가 스스로 연결을 끊거나, 서버의 다른 로직에 의해 연결이 종료될 수 있습니다.
         }
     }
 
