@@ -37,6 +37,7 @@
     <!-- STOMP 프레임 디버깅을 위한 로거 설정 -->
     <logger name="com.wowelang.chatserver.interceptor.StompFrameDebugInterceptor" level="TRACE">
         <appender-ref ref="STOMP_DEBUG_FILE" />
+        <appender-ref ref="CONSOLE" />
     </logger>
     
     <!-- Spring WebSocket 관련 로그 설정 -->
