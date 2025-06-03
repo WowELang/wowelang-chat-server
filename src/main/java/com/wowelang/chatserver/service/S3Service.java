@@ -87,7 +87,7 @@ public class S3Service {
 
     private String getFileExtensionFromMimeType(String mimeType) {
         return switch (mimeType.toLowerCase()) {
-            case "image/jpeg" -> ".jpg";
+            case "image/jpeg", "image/jpg" -> ".jpg";
             case "image/png" -> ".png";
             case "image/gif" -> ".gif";
             case "image/webp" -> ".webp";
