@@ -30,14 +30,22 @@ Spring Boot 기반의 1:1 채팅 서버 애플리케이션입니다. 한국어-�
 - STOMP 연결
   - 클라이언트 전송 → `/app/chat.send.{roomId}`
   - 브로커 브로드캐스트 → `/topic/chat.{roomId}`
+  - 연결 상태 확인 → `/app/ping` → `/topic/pong` (ping-pong 메커니즘)
 - 메시지 유형
   - `TEXT`, `IMAGE`, `CORRECTION` (HelloTalk 스타일 교정)
 - **제한사항**
   - 최대 텍스트 길이 = **2,000자** (UTF-8)
   - 최대 첨부 파일 크기 = **10MB** (사전 서명된 URL 정책 + 서버 측 유효성 검사)
 - 이미지 업로드 흐름
-  1. `POST /attachments/presign?mime=image/jpeg` → 사전 서명된 **PUT** URL (15분 후 만료)
-  2. 클라이언트가 업로드 후 `{ type:"IMAGE", s3Key:"..." }` 포함 메시지 전송
+  1. `POST /attachments/presign` (Body: `{"mimeType": "image/jpeg"}`) → 사전 서명된 **PUT** URL (15분 후 만료)
+  2. 클라이언트가 직접 S3에 업로드 후 `{ type:"IMAGE", s3Key:"..." }` 포함 메시지 전송
+  3. 이미지 조회 시 `GET /attachments/presigned-url?s3Key=<key>` → 사전 서명된 **GET** URL (15분 후 만료)
+
+### 지원 이미지 형식
+- **JPEG**: `image/jpeg`, `image/jpg` → `.jpg` 확장자
+- **PNG**: `image/png` → `.png` 확장자  
+- **GIF**: `image/gif` → `.gif` 확장자
+- **WebP**: `image/webp` → `.webp` 확장자
 
 ### 메시지 액션
 - **전송**: 저장 + 브로드캐스트
@@ -147,8 +155,15 @@ DELETE /rooms/{roomId}/messages/{messageId}
 
 ### Attachment API
 ```
-# 첨부 파일 업로드를 위한 사전 서명된 URL 요청
-POST /attachments/presign?mime=image/jpeg
+# 파일 업로드용 사전 서명된 PUT URL 요청
+POST /attachments/presign
+Content-Type: application/json
+{
+  "mimeType": "image/jpeg"
+}
+
+# 이미지 조회용 사전 서명된 GET URL 요청  
+GET /attachments/presigned-url?s3Key={s3Key}
 ```
 
 ## 테스트
