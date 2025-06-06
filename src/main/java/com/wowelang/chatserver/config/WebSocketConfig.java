@@ -1,9 +1,11 @@
 package com.wowelang.chatserver.config;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.simp.config.ChannelRegistration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
@@ -25,6 +27,12 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Value("${websocket.endpoint}")
     private String endpoint;
+    
+    @Value("${websocket.heartbeat.server-to-client:30000}")
+    private long serverToClientHeartbeat;
+    
+    @Value("${websocket.heartbeat.client-to-server:30000}")
+    private long clientToServerHeartbeat;
 
     // allowedOrigins 변수는 현재 setAllowedOriginPatterns("*")로 대체되었으므로 주석 처리하거나 삭제 가능
     // @Value("${websocket.allowed-origins}")
@@ -35,7 +43,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
-        registry.enableSimpleBroker("/topic", "/queue");
+        registry.enableSimpleBroker("/topic", "/queue")
+                .setHeartbeatValue(new long[]{serverToClientHeartbeat, clientToServerHeartbeat}) // 하트비트 주기 설정
+                .setTaskScheduler(taskScheduler()); // 하트비트를 위한 스케줄러 설정
         registry.setApplicationDestinationPrefixes("/app");
         registry.setUserDestinationPrefix("/user");
     }
@@ -60,5 +70,19 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 return new EmaWebSocketHandlerDecorator(webSocketHandler);
             }
         });
+    }
+    
+    /**
+     * WebSocket 하트비트를 위한 TaskScheduler Bean 생성
+     */
+    @Bean
+    public ThreadPoolTaskScheduler taskScheduler() {
+        ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
+        scheduler.setPoolSize(10); // 동시에 처리할 수 있는 하트비트 작업 수
+        scheduler.setThreadNamePrefix("websocket-heartbeat-");
+        scheduler.setWaitForTasksToCompleteOnShutdown(true);
+        scheduler.setAwaitTerminationSeconds(60);
+        scheduler.initialize();
+        return scheduler;
     }
 } 

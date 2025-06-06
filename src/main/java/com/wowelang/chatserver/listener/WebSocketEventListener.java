@@ -82,13 +82,22 @@ public class WebSocketEventListener {
         StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
         String sessionId = headerAccessor.getSessionId();
         
+        // 연결 종료 원인 확인 (하트비트 타임아웃 포함)
+        String closeStatus = event.getCloseStatus() != null ? event.getCloseStatus().toString() : "UNKNOWN";
+        
         // 세션 레지스트리에서 해당 세션을 제거하고 연결된 사용자 ID 반환
         String userId = userSessionRegistry.removeSession(sessionId);
         
         if (userId != null) {
-            log.info("사용자 웹소켓 연결 종료: 사용자 ID={}, 세션 ID={}", userId, sessionId);
+            log.info("사용자 웹소켓 연결 종료: 사용자 ID={}, 세션 ID={}, 종료 상태={}", 
+                    userId, sessionId, closeStatus);
             
-            // 필요한 경우 추가 처리
+            // 하트비트 타임아웃으로 인한 연결 종료인지 확인
+            if (closeStatus.contains("POLICY_VIOLATION") || closeStatus.contains("HEARTBEAT")) {
+                log.warn("하트비트 타임아웃으로 인한 연결 종료 감지: 사용자 ID={}, 세션 ID={}", userId, sessionId);
+            }
+        } else {
+            log.debug("알 수 없는 세션 연결 종료: 세션 ID={}, 종료 상태={}", sessionId, closeStatus);
         }
     }
 } 
